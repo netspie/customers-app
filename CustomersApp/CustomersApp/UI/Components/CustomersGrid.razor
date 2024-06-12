@@ -1,0 +1,66 @@
+﻿@using CustomersApp.Entities
+@using CustomersApp.Services
+
+@rendermode InteractiveServer
+
+@inject IPersonsService PersonsService
+
+@if (_personsDTO is null) { return; }
+
+<MudDataGrid 
+    @ref=_personsGrid 
+    T=@Entities.Person 
+    Items=@_personsDTO.Persons
+    Filterable=false 
+    Bordered=false 
+    Hover=true 
+    RowClick=@OnItemClick
+    RowsPerPage=25
+    Outlined=false 
+    Elevation=0 
+    MultiSelection=@true
+    SelectedItemsChanged=@(() => {})>
+    <Columns>
+        <SelectColumn T=@Entities.Person />
+        <PropertyColumn Title="First Name" Property=@(x => x.FirstName) Filterable=false />
+        <PropertyColumn Title="Last Name" Property=@(x => x.LastName) Filterable=false />
+        <PropertyColumn Title="Email" Property=@(x => x) Filterable=false>
+            <CellTemplate>
+                @if (@context.Item.Emails?.FirstOrDefault() is not null)
+                {
+                    <MudText>@context.Item.Emails[0].Content</MudText>
+                }
+                else
+                {
+                    <MudText Style="font-style: italic;">-- none --</MudText>
+                }
+            </CellTemplate>
+        </PropertyColumn>
+    </Columns>
+</MudDataGrid>
+
+@code {
+    private MudDataGrid<Person>? _personsGrid;
+
+    private PersonsDTO? _personsDTO;
+    private RangeArg _rangeArg = new(0, 25);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Refresh();
+    }
+
+    private void OnItemClick(DataGridRowClickEventArgs<Person> args)
+    {
+
+    }
+
+    private async Task OnSelectedItemsChanged(HashSet<Person> items)
+    {
+    }
+
+    public async Task Refresh()
+    {
+        _personsDTO = await PersonsService.GetRange(_rangeArg);
+    }
+}
