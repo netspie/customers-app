@@ -16,3 +16,4 @@ Asp.Net Core 8, Blazor Server, MudBlazor, SQL Server, EF Core
 _Missing:_
 - Input validation and ui reacting to database operation results if error occured
 - Emails and description update forms
+- Better UX in general
