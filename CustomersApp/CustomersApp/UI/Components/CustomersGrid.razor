@@ -4,63 +4,242 @@
 @rendermode InteractiveServer
 
 @inject IPersonsService PersonsService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
-@if (_personsDTO is null) { return; }
+@if (_personsDTO is null || _rangeDTO is null) { return; }
 
-<MudDataGrid 
-    @ref=_personsGrid 
-    T=@Entities.Person 
-    Items=@_personsDTO.Persons
-    Filterable=false 
-    Bordered=false 
-    Hover=true 
-    RowClick=@OnItemClick
-    RowsPerPage=25
-    Outlined=false 
-    Elevation=0 
-    MultiSelection=@true
-    SelectedItemsChanged=@(() => {})>
-    <Columns>
-        <SelectColumn T=@Entities.Person />
-        <PropertyColumn Title="First Name" Property=@(x => x.FirstName) Filterable=false />
-        <PropertyColumn Title="Last Name" Property=@(x => x.LastName) Filterable=false />
-        <PropertyColumn Title="Email" Property=@(x => x) Filterable=false>
-            <CellTemplate>
-                @if (@context.Item.Emails?.FirstOrDefault() is not null)
+<MudStack>
+    <MudStack Row=@true Style="align-items: center; gap: 10px;">
+        <MudMenu
+            PositionAtCursor=@true 
+            Icon=@Icons.Material.Outlined.Add 
+            Variant=@Variant.Outlined 
+            Color=@Color.Primary 
+            Style="width: fit-content;">
+            <MudStack Style="padding: 10px;">
+                <MudText>Add Person</MudText>
+                <MudTextField ShrinkLabel @bind-Value=@_firstName Label="First Name" Variant=Variant.Outlined></MudTextField>
+                <MudTextField ShrinkLabel @bind-Value=@_lastName Label="Last Name" Variant=Variant.Outlined></MudTextField>
+                <MudButton Variant=Variant.Filled Color=Color.Primary Style="width: fit-content;" OnClick=@OnItemAdded>
+                    Add
+                </MudButton>
+            </MudStack>
+        </MudMenu>
+        <MudOverlay @bind-Visible=@_isEdit DarkBackground=@true AutoClose=@true>
+            <MudPaper @onclick:stopPropagation="true" 
+                Style="top: 50px; left: 50px; width: fit-content; z-index: 9999;">
+                <MudStack Style="padding: 10px;">
+                    <MudText>Edit Person</MudText>
+                    <MudTextField ShrinkLabel @bind-Value=@_firstName Label="First Name" Variant=Variant.Outlined></MudTextField>
+                    <MudTextField ShrinkLabel @bind-Value=@_lastName Label="Last Name" Variant=Variant.Outlined></MudTextField>
+                    <MudButton Variant=Variant.Filled Color=Color.Primary Style="width: fit-content;" OnClick=@OnItemUpdated>
+                        Update
+                    </MudButton>
+                </MudStack>
+            </MudPaper>
+        </MudOverlay>
+        @if (_personsGrid is not null && _personsGrid.Selection.Count() > 0)
+        {
+            <MudIconButton Icon=@Icons.Material.Filled.Delete Color=Color.Secondary Edge=@Edge.Start Style="width: fit-content; justify-self: center;" OnClick=@OnItemDeleted />
+        }
+    </MudStack>
+    <MudDataGrid 
+        @ref=_personsGrid 
+        T=@PersonDTO
+        Items=@_personsDTO.Persons
+        Filterable=false 
+        Bordered=false 
+        Hover=true 
+        RowClick=@OnItemClick
+        RowsPerPage=25
+        Outlined=false 
+        Elevation=0 
+        MultiSelection=@false
+        SelectOnRowClick=@false
+        SelectedItemsChanged=@OnSelectedItemsChanged>
+        <Columns>
+            <SelectColumn T=@PersonDTO ShowInFooter=@false ShowInHeader=@false />
+            <PropertyColumn Title="First Name" Property=@(x => x.FirstName) Filterable=false />
+            <PropertyColumn Title="Last Name" Property=@(x => x.LastName) Filterable=false />
+            <PropertyColumn Title="Email" Property=@(x => x) Filterable=false>
+                <CellTemplate>
+                    @if (@context.Item.Email is not null)
+                    {
+                        <MudText>@context.Item.Email</MudText>
+                    }
+                    else
+                    {
+                        <MudText Style="font-style: italic;">-- none --</MudText>
+                    }
+                </CellTemplate>
+            </PropertyColumn>
+        </Columns>
+        <PagerContent>
+            <MudStack 
+                Row=@true
+                Style="width: 100%; display: flex; justify-content: right;">
+                <div class="mud-table-pagination-caption">
+                    <div class="mud-table-page-number-information">
+                        <span>@_rangeDTO.Offset</span>
+                        -
+                        <span>@(Math.Min(_rangeDTO.Limit + _rangeDTO.Offset, _rangeDTO.TotalCount))</span>
+                        of
+                        <span>@(_rangeDTO.TotalCount)</span>
+                    </div>
+                </div>
+            </MudStack>
+            <div style="display: flex; justify-content: right;">
+                @if (_rangeDTO.Offset >= _rangeDTO.Limit && _rangeDTO.TotalCount >= _rangeDTO.Limit)
                 {
-                    <MudText>@context.Item.Emails[0].Content</MudText>
+                    <MudIconButton Class="mud-flip-x-rtl" Icon=@Icons.Material.Outlined.KeyboardDoubleArrowLeft @onclick=@OnFirstPage aria-label="First page" />
                 }
-                else
+                @if (_rangeDTO.Offset >= _rangeDTO.Limit)
                 {
-                    <MudText Style="font-style: italic;">-- none --</MudText>
+                    <MudIconButton Class="mud-flip-x-rtl" Icon=@Icons.Material.Outlined.KeyboardArrowLeft @onclick=@OnPrevPage aria-label="Previous page" />
                 }
-            </CellTemplate>
-        </PropertyColumn>
-    </Columns>
-</MudDataGrid>
+                @if (_rangeDTO.TotalCount >= _rangeDTO.Limit && _rangeDTO.Offset + _rangeDTO.Limit < _rangeDTO.TotalCount)
+                {
+                    <MudIconButton Class="mud-flip-x-rtl" Icon=@Icons.Material.Outlined.KeyboardArrowRight @onclick=@OnNextPage aria-label="Next page" />
+                }
+                @if (_rangeDTO.Offset < (_rangeDTO.TotalCount - _rangeDTO.Limit) && _rangeDTO.TotalCount >= _rangeDTO.Limit)
+                {
+                    <MudIconButton Class="mud-flip-x-rtl" Icon=@Icons.Material.Outlined.KeyboardDoubleArrowRight @onclick=@OnLastPage aria-label="Last page" />
+                }
+            </div>
+        </PagerContent>
+    </MudDataGrid>
+</MudStack>
+
+<script>
+    function focusElement(element) {
+        element.focus()
+    }
+</script>
 
 @code {
-    private MudDataGrid<Person>? _personsGrid;
+    private MudDataGrid<PersonDTO>? _personsGrid;
 
     private PersonsDTO? _personsDTO;
+    private RangeDTO? _rangeDTO;
+
     private RangeArg _rangeArg = new(0, 25);
+
+    private int? _personId;
+    private string? _firstName;
+    private string? _lastName;
+
+    private bool _isEdit;
 
     protected override async Task OnInitializedAsync()
     {
-        await Refresh();
+        await RefreshDTO();
     }
 
-    private void OnItemClick(DataGridRowClickEventArgs<Person> args)
+    private async Task OnItemClick(DataGridRowClickEventArgs<PersonDTO> args)
     {
+        _isEdit = true;
 
+        _personId = args.Item.Id;
+        _firstName = args.Item.FirstName;
+        _lastName = args.Item.LastName;
+
+        await InvokeAsync(StateHasChanged);
     }
 
-    private async Task OnSelectedItemsChanged(HashSet<Person> items)
+    private async Task OnItemAdded()
     {
+        if (_firstName is null or [] ||
+            _lastName is null or [])
+        {
+            Snackbar.Add("Fill the fields!");
+            return;
+        }
+
+        await PersonsService.Create(new Person(_firstName, _lastName));
+
+        Snackbar.Add("New person added");
+
+        await RefreshView();
     }
 
-    public async Task Refresh()
+    private async Task OnItemUpdated()
+    {
+        if (_personId is null ||
+            _firstName is null or [] ||
+            _lastName is null or [])
+        {
+            Snackbar.Add("Fill the fields!");
+            return;
+        }
+
+        await PersonsService.Update(_personId.Value, _firstName, _lastName);
+
+        Snackbar.Add("Person updated");
+
+        _isEdit = false;
+        await RefreshView();
+    }
+
+    private async Task OnItemDeleted()
+    {
+        var selected = _personsGrid.SelectedItem;
+        if (selected is null)
+            return;
+
+        await PersonsService.Delete(selected.Id);
+
+        Snackbar.Add("Person deleted");
+
+        await RefreshView();
+    }
+
+    private void OnSelectedItemsChanged(HashSet<PersonDTO> items)
+    {
+        _personsGrid?.Selection?.Clear();
+        if (items.Count > 0)
+            _personsGrid?.Selection?.Add(items.First());
+    }
+
+    private async Task OnPrevPage()
+    {
+        _rangeArg = new RangeArg(Math.Max(_rangeArg.Offset - _rangeArg.Limit, 0), _rangeArg.Limit);
+        await RefreshDTO();
+    }
+
+    private async Task OnNextPage()
+    {
+        _rangeArg = new RangeArg(_rangeArg.Offset + _rangeArg.Limit, _rangeArg.Limit);
+        await RefreshDTO();
+    }
+
+    private async Task OnFirstPage()
+    {
+        _rangeArg = new RangeArg(0, _rangeArg.Limit);
+        await RefreshDTO();
+    }
+
+    private async Task OnLastPage()
+    {
+        if (_rangeDTO is null)
+            return;
+
+        var lastPageItemsCount = _rangeDTO.TotalCount % _rangeArg.Limit;
+        lastPageItemsCount = lastPageItemsCount == 0 ? _rangeArg.Limit : lastPageItemsCount;
+
+        _rangeArg = new RangeArg((_rangeDTO.TotalCount - lastPageItemsCount), _rangeDTO.Limit);
+        await RefreshDTO();
+    }
+
+    public async Task RefreshDTO()
     {
         _personsDTO = await PersonsService.GetRange(_rangeArg);
+        _rangeDTO = _personsDTO.Range;
+    }
+
+    public async Task RefreshView()
+    {
+        await RefreshDTO();
+        await InvokeAsync(StateHasChanged);
     }
 }

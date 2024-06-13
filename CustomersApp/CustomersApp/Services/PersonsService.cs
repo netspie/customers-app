@@ -9,10 +9,14 @@ public class PersonsService : IPersonsService
     private readonly AppDbContext _dbContext;
     private readonly DbSet<Person> _dbSet;
 
+    private GetPersonsQuery _getPersonsQuery;
+
     public PersonsService(AppDbContext dbContext)
     {
         _dbContext = dbContext;
         _dbSet = _dbContext.Persons;
+
+        _getPersonsQuery = new(_dbSet);
     }
 
     public async Task Create(Person person)
@@ -21,17 +25,19 @@ public class PersonsService : IPersonsService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task Update(Person person)
+    public async Task Update(int personId, string firstName, string lastName)
     {
-        var entry = _dbSet.Entry(person);
+        var person = await _dbSet.FindAsync(personId);
+        if (person is null)
+            return;
 
-        _dbSet.Attach(person);
-        entry.State = EntityState.Modified;
+        person.FirstName = firstName;
+        person.LastName = lastName;
 
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task Delete(string personId)
+    public async Task Delete(int personId)
     {
         var person = _dbSet.Find(personId);
         if (person is null)
@@ -45,51 +51,15 @@ public class PersonsService : IPersonsService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task<PersonsDTO> GetRange(RangeArg? range = null)
-    {
-        range ??= new(0, RangeArg.MaxLimit);
-
-        var persons = await _dbSet
-            .Skip(range.Offset)
-            .Take(range.Limit)
-            .ToArrayAsync();
-
-        var count = await _dbSet.CountAsync();
-
-        return new PersonsDTO(
-            persons,
-            new RangeDTO(count, range.Offset, range.Limit));
-    }
+    public Task<PersonsDTO> GetRange(RangeArg? range = null) =>
+        _getPersonsQuery.Execute(range);
 }
 
 public interface IPersonsService
 {
     Task Create(Person person);
-    Task Update(Person person);
-    Task Delete(string personId);
+    Task Update(int personId, string firstName, string lastName);
+    Task Delete(int personId);
 
     Task<PersonsDTO> GetRange(RangeArg range);
-}
-
-public record PersonsDTO(
-    Person[] Persons,
-    RangeDTO Range);
-
-public record RangeDTO(
-    int TotalCount,
-    int Offset = 0,
-    int Limit = int.MaxValue);
-
-public record RangeArg
-{
-    public const int MaxLimit = 25;
-
-    public int Offset { get; }
-    public int Limit { get; }
-
-    public RangeArg(int offset, int limit)
-    {   
-        Offset = Math.Max(0, offset); 
-        Limit = Math.Min(MaxLimit, limit);
-    }
 }
